@@ -232,6 +232,8 @@ model Transaction {
 
   @@index([agentId, cycle])
   @@index([simulationId, createdAt])
+  /// Analytics groups the ledger by cycle to rebuild capital over time.
+  @@index([simulationId, cycle])
   @@index([type])
 }
 

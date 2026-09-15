@@ -59,17 +59,25 @@ Runs the economy in memory across a parameter grid. This is how the default numb
 
 ## What you can actually do
 
+The console is a mission-control surface: a fixed sidebar, a top bar carrying the mission clocks
+and transport controls, and the SOLAXIUM CORE — a live canvas portrait of the population — at the
+centre.
+
 | | |
 |---|---|
 | `/` | Landing page with live population statistics |
-| `/dashboard` | Live agents, dead agents, capital, revenue, profit, generations, clones, survival rate |
-| `/simulation` | Start / pause / step / stop / reset, four speeds, live event stream |
-| `/agents` | Every agent produced, filterable and sortable |
-| `/agents/[id]` | One agent: economics, traits, mutations, memory, decisions, ledger, capital chart |
-| `/evolution` | The full family tree |
-| `/generations` | Cohort-by-cohort comparison |
-| `/leaderboard` | Five rankings, scoped to a run, a generation, or all time |
-| `/graveyard` | Every agent that ran out of capital, with its final numbers |
+| `/overview` | Mission control: KPIs, the Core, engine cards, telemetry, live events, analytics |
+| `/agents` · `/agents/[id]` | Every agent produced; one agent in full detail |
+| `/engines` | Live engine cards: current action, confidence, runway |
+| `/market` | Market conditions and measured returns per economic action |
+| `/portfolio` | Capital, treasury flows, holdings and concentration |
+| `/analytics` | Survival, lifetime, clone rate and trait evolution by generation |
+| `/replay` | Scrub the run; the population is rebuilt from the ledger at any cycle |
+| `/settings` | Configuration, runtime state and every run on the instance |
+| `/evolution` · `/leaderboard` · `/graveyard` | Family tree, rankings, the dead |
+
+Transport controls drive the real engine: play, pause, step one cycle, stop, reset, and playback
+speeds of 0.5× / 1× / 2× / 5× / 10× / 25×.
 
 ---
 
@@ -181,7 +189,7 @@ Note that a network-backed brain forfeits seed reproducibility, which is why `de
 ```bash
 npm run dev          # development server
 npm run build        # production build (runs prisma generate first)
-npm test             # 141 tests
+npm test             # 172 tests
 npm run typecheck    # tsc --noEmit
 npm run simulate     # headless run
 npm run db:push      # sync schema without a migration
@@ -208,6 +216,7 @@ money stops being simulated.
 - [`docs/ECONOMY.md`](docs/ECONOMY.md) — actions, the ledger, balancing
 - [`docs/SOLANA.md`](docs/SOLANA.md) — the abstraction today and the path to real SOL
 - [`docs/SECURITY.md`](docs/SECURITY.md) — threat model and the V2 checklist
+- [`docs/DESIGN.md`](docs/DESIGN.md) — the design system, and why the chart palette is what it is
 
 ---
 

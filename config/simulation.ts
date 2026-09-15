@@ -107,23 +107,43 @@ export interface SimulationConfig {
    * roughly break-even, below 1.0 the population shrinks.
    */
   REVENUE_SCALE: number;
-  /** Agents acting per engine tick (a tick advances one cycle for everyone). */
-  SIMULATION_SPEED: Record<SpeedName, number>;
   REVENUE_RANGES: Record<ActionType, SolRange>;
   EXPENSE_RANGES: Record<ActionType, SolRange>;
 }
 
-export type SpeedName = 'SLOW' | 'NORMAL' | 'FAST' | 'TURBO';
+/**
+ * Playback speed is a multiplier on simulated cycles per second. It is a
+ * property of the *runner*, never of the simulation: changing it alters how
+ * fast you watch a run, never its outcome.
+ */
+export const SPEED_MULTIPLIERS = [0.5, 1, 2, 5, 10, 25] as const;
 
-export const SPEEDS: SpeedName[] = ['SLOW', 'NORMAL', 'FAST', 'TURBO'];
+export type SpeedMultiplier = (typeof SPEED_MULTIPLIERS)[number];
 
-/** Milliseconds between engine ticks, per speed setting. */
-export const SPEED_INTERVAL_MS: Record<SpeedName, number> = {
-  SLOW: 2000,
-  NORMAL: 900,
-  FAST: 350,
-  TURBO: 120,
-};
+export const DEFAULT_SPEED: SpeedMultiplier = 1;
+
+/** Fastest beat we will schedule; below this the loop batches instead. */
+const MIN_INTERVAL_MS = 80;
+
+export function isSpeedMultiplier(value: unknown): value is SpeedMultiplier {
+  return (
+    typeof value === 'number' && (SPEED_MULTIPLIERS as readonly number[]).includes(value)
+  );
+}
+
+/**
+ * Converts a multiplier into a timer interval and a per-tick batch size.
+ *
+ * At high speeds a 1-cycle-per-beat loop would need a sub-40ms timer, which the
+ * event loop cannot honour reliably, so the loop runs several cycles per beat
+ * instead. `interval x batch` always reconstructs the requested rate.
+ */
+export function speedSchedule(multiplier: number): { intervalMs: number; batch: number } {
+  const rate = multiplier > 0 ? multiplier : 1;
+  const intervalMs = Math.max(MIN_INTERVAL_MS, Math.round(1000 / rate));
+  const batch = Math.max(1, Math.round((rate * intervalMs) / 1000));
+  return { intervalMs, batch };
+}
 
 export const ACTION_DEFINITIONS: Record<ActionType, ActionDefinition> = {
   CREATE_PRODUCT: {
@@ -280,7 +300,6 @@ export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
   MIN_AGE_FOR_CLONING: 3,
   MARKET_AMPLITUDE: 0.25,
   MARKET_PERIOD_CYCLES: 40,
-  SIMULATION_SPEED: { SLOW: 1, NORMAL: 1, FAST: 1, TURBO: 3 },
   REVENUE_RANGES: rangesFrom((d) => d.potentialRevenue),
   EXPENSE_RANGES: rangesFrom((d) => d.cost),
 };

@@ -1,6 +1,11 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
+/**
+ * Shared console primitives. The console shell supplies the chrome; these are
+ * the pieces individual pages assemble their content from.
+ */
+
 export function PageHeader({
   eyebrow,
   title,
@@ -13,12 +18,14 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-4 border-b border-line pb-6 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
-        {eyebrow && <div className="label mb-2">{eyebrow}</div>}
-        <h1 className="text-xl font-medium tracking-tight text-ink sm:text-2xl">{title}</h1>
+        {eyebrow && <div className="label mb-1.5">{eyebrow}</div>}
+        <h1 className="font-mono text-base font-medium uppercase tracking-widest2 text-ink">
+          {title}
+        </h1>
         {description && (
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-muted">{description}</p>
+          <p className="mt-2 max-w-3xl text-xs leading-relaxed text-ink-muted">{description}</p>
         )}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>}
@@ -31,7 +38,7 @@ export function Panel({
   action,
   children,
   className = '',
-  bodyClassName = 'p-4',
+  bodyClassName = 'p-3.5',
 }: {
   title?: string;
   action?: ReactNode;
@@ -63,25 +70,29 @@ export function Stat({
   value: string;
   unit?: string;
   hint?: string;
-  tone?: 'default' | 'sol' | 'danger' | 'muted';
+  tone?: 'default' | 'accent' | 'good' | 'danger' | 'muted';
 }) {
   const toneClass =
-    tone === 'sol'
-      ? 'text-sol'
-      : tone === 'danger'
-        ? 'text-danger'
-        : tone === 'muted'
-          ? 'text-ink-muted'
-          : 'text-ink';
+    tone === 'accent'
+      ? 'text-cy'
+      : tone === 'good'
+        ? 'text-good'
+        : tone === 'danger'
+          ? 'text-bad'
+          : tone === 'muted'
+            ? 'text-ink-muted'
+            : 'text-ink';
 
   return (
-    <div className="panel p-4">
+    <div className="panel p-3.5">
       <div className="label">{label}</div>
       <div className="mt-2 flex items-baseline gap-1.5">
-        <span className={`stat-value ${toneClass}`}>{value}</span>
-        {unit && <span className="font-mono text-2xs uppercase text-ink-faint">{unit}</span>}
+        <span className={`tabular font-mono text-xl font-medium tracking-tight ${toneClass}`}>
+          {value}
+        </span>
+        {unit && <span className="font-mono text-3xs uppercase text-ink-faint">{unit}</span>}
       </div>
-      {hint && <div className="mt-1.5 text-2xs text-ink-faint">{hint}</div>}
+      {hint && <div className="mt-1.5 font-mono text-3xs text-ink-ghost">{hint}</div>}
     </div>
   );
 }
@@ -91,13 +102,10 @@ export function StatusDot({ status }: { status: 'ALIVE' | 'DEAD' | string }) {
   return (
     <span className="inline-flex items-center gap-1.5">
       <span
-        className={[
-          'h-1.5 w-1.5 rounded-full',
-          alive ? 'bg-sol animate-pulse-soft' : 'bg-danger/70',
-        ].join(' ')}
+        className={`h-1.5 w-1.5 rounded-full ${alive ? 'animate-breathe bg-good' : 'bg-bad'}`}
       />
       <span
-        className={`font-mono text-2xs uppercase tracking-wider ${alive ? 'text-sol' : 'text-danger/90'}`}
+        className={`font-mono text-3xs uppercase tracking-wider ${alive ? 'text-good' : 'text-bad'}`}
       >
         {status}
       </span>
@@ -117,7 +125,7 @@ export function AgentLink({
   return (
     <Link
       href={`/agents/${id}`}
-      className={`font-mono text-xs text-ink transition-colors hover:text-sol ${className}`}
+      className={`font-mono text-2xs text-ink transition-colors hover:text-cy ${className}`}
     >
       {code}
     </Link>
@@ -134,20 +142,19 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="panel flex flex-col items-center gap-3 px-6 py-16 text-center">
-      <div className="font-mono text-xs uppercase tracking-widest2 text-ink-muted">{title}</div>
-      <p className="max-w-md text-sm leading-relaxed text-ink-faint">{description}</p>
+    <div className="panel flex flex-col items-center gap-2.5 px-6 py-16 text-center">
+      <div className="font-mono text-2xs uppercase tracking-widest2 text-ink-muted">{title}</div>
+      <p className="max-w-md font-mono text-3xs leading-relaxed text-ink-faint">{description}</p>
       {action}
     </div>
   );
 }
 
 export function Delta({ value, decimals = 4 }: { value: number; decimals?: number }) {
-  const tone = value > 0 ? 'text-sol' : value < 0 ? 'text-danger' : 'text-ink-faint';
-  const sign = value > 0 ? '+' : '';
+  const tone = value > 0 ? 'text-good' : value < 0 ? 'text-bad' : 'text-ink-ghost';
   return (
     <span className={`tabular font-mono ${tone}`}>
-      {sign}
+      {value > 0 ? '+' : ''}
       {value.toFixed(decimals)}
     </span>
   );
@@ -156,16 +163,16 @@ export function Delta({ value, decimals = 4 }: { value: number; decimals?: numbe
 export function TraitBar({ name, value }: { name: string; value: number }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="w-32 shrink-0 font-mono text-2xs uppercase tracking-wider text-ink-faint">
+      <span className="w-28 shrink-0 font-mono text-3xs uppercase tracking-wider text-ink-faint">
         {name}
       </span>
-      <div className="h-1 flex-1 overflow-hidden rounded-full bg-line">
+      <div className="h-1 flex-1 overflow-hidden rounded-full bg-raised">
         <div
-          className="h-full rounded-full bg-sol/70"
-          style={{ width: `${Math.round(value * 100)}%` }}
+          className="h-full rounded-full transition-[width] duration-500"
+          style={{ width: `${Math.round(value * 100)}%`, background: 'var(--viz-1)' }}
         />
       </div>
-      <span className="tabular w-10 text-right font-mono text-2xs text-ink-muted">
+      <span className="tabular w-9 text-right font-mono text-3xs text-ink-muted">
         {value.toFixed(2)}
       </span>
     </div>

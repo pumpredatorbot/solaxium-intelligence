@@ -9,13 +9,18 @@
  * error rather than leaving a dangling interval that keeps failing.
  */
 
-import { SPEED_INTERVAL_MS, type SpeedName } from '@/config/simulation';
+import {
+  DEFAULT_SPEED,
+  speedSchedule,
+  type SpeedMultiplier,
+} from '@/config/simulation';
 import { prisma } from '@/lib/db';
 import { pauseSimulation, runCycle, type CycleReport } from './engine';
 
 export interface RunnerState {
   simulationId: string;
-  speed: SpeedName;
+  /** Cycles per second. */
+  speed: SpeedMultiplier;
   running: boolean;
   lastCycleAt: number | null;
   lastError: string | null;
@@ -38,7 +43,7 @@ function entryFor(simulationId: string): RunnerEntry {
   if (!entry) {
     entry = {
       simulationId,
-      speed: 'NORMAL',
+      speed: DEFAULT_SPEED,
       running: false,
       lastCycleAt: null,
       lastError: null,
@@ -56,7 +61,7 @@ export function getRunnerState(simulationId: string): RunnerState {
   return state;
 }
 
-export function setSpeed(simulationId: string, speed: SpeedName): RunnerState {
+export function setSpeed(simulationId: string, speed: SpeedMultiplier): RunnerState {
   const entry = entryFor(simulationId);
   entry.speed = speed;
   if (entry.running) {
@@ -66,7 +71,7 @@ export function setSpeed(simulationId: string, speed: SpeedName): RunnerState {
 }
 
 /** Starts (or re-arms) the loop. Safe to call when already running. */
-export function startRunner(simulationId: string, speed?: SpeedName): RunnerState {
+export function startRunner(simulationId: string, speed?: SpeedMultiplier): RunnerState {
   const entry = entryFor(simulationId);
   if (speed) entry.speed = speed;
   entry.lastError = null;
@@ -89,10 +94,28 @@ export function stopAllRunners(): void {
   for (const id of runners.keys()) stopRunner(id);
 }
 
+/**
+ * Waits for an in-flight cycle to finish.
+ *
+ * `stopRunner` only clears the timer; a cycle already running keeps going and
+ * will happily write to rows a concurrent reset is deleting. Anything that
+ * mutates a simulation out from under the loop must drain it first.
+ */
+export async function drainRunner(simulationId: string, timeoutMs = 8000): Promise<boolean> {
+  const entry = runners.get(simulationId);
+  if (!entry) return true;
+
+  const deadline = Date.now() + timeoutMs;
+  while (entry.busy && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return !entry.busy;
+}
+
 function schedule(entry: RunnerEntry): void {
   if (entry.timer) clearInterval(entry.timer);
-  const interval = SPEED_INTERVAL_MS[entry.speed];
-  entry.timer = setInterval(() => void tick(entry), interval);
+  const { intervalMs } = speedSchedule(entry.speed);
+  entry.timer = setInterval(() => void tick(entry), intervalMs);
   if (typeof entry.timer.unref === 'function') entry.timer.unref();
 }
 
@@ -113,7 +136,7 @@ async function tick(entry: RunnerEntry): Promise<void> {
       return;
     }
 
-    const batch = entry.speed === 'TURBO' ? 3 : 1;
+    const { batch } = speedSchedule(entry.speed);
     let report: CycleReport | null = null;
     for (let i = 0; i < batch; i++) {
       report = await runCycle(entry.simulationId);

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { AgentLink, EmptyState, PageHeader, Panel } from '@/components/ui';
-import { BarChart } from '@/components/charts';
+import { ColumnChart } from '@/components/charts';
 import { getActiveSimulation, listGenerations } from '@/lib/repo/queries';
 
 export const dynamic = 'force-dynamic';
@@ -44,21 +44,21 @@ export default async function GenerationsPage({
 
       <div className="mt-8 grid gap-3 lg:grid-cols-2">
         <Panel title="Survival rate by generation" bodyClassName="p-5">
-          <BarChart
+          <ColumnChart
             bars={generations.map((g) => ({
               label: `G${g.number}`,
               value: g.survivalRate * 100,
             }))}
-            format={(v) => `${v.toFixed(0)}%`}
+            format={{ decimals: 0, suffix: '%' }}
           />
         </Panel>
         <Panel title="Average capital by generation" bodyClassName="p-5">
-          <BarChart
+          <ColumnChart
             bars={generations.map((g) => ({
               label: `G${g.number}`,
               value: g.averageCapitalSol,
             }))}
-            format={(v) => `${v.toFixed(3)} SOL`}
+            format={{ decimals: 3, suffix: ' SOL' }}
           />
         </Panel>
       </div>

@@ -455,3 +455,54 @@ export async function getSimulationConfig(simulationId: string) {
   });
   return resolveConfig(row?.config);
 }
+
+// ---------------------------------------------------------------------------
+// Core visualisation feed
+// ---------------------------------------------------------------------------
+
+/**
+ * A compact population snapshot for the Core visualisation.
+ *
+ * Deliberately terse: this rides on the status poll, so it is fetched as often
+ * as once a second. Short keys and a hard cap keep the payload small, and
+ * because it is a full snapshot rather than a diff the visualisation
+ * self-heals if a client misses events at high playback speeds.
+ */
+export interface CoreNode {
+  /** id */ i: string;
+  /** code */ c: string;
+  /** generation */ g: number;
+  /** alive (1) or dead (0) */ a: 0 | 1;
+  /** capital, SOL */ k: number;
+  /** parent id */ p: string | null;
+}
+
+export async function getCorePopulation(
+  simulationId: string,
+  limit = 260,
+): Promise<CoreNode[]> {
+  const rows = await prisma.agent.findMany({
+    where: { simulationId },
+    // Living agents first, then the most recently deceased: a long run's
+    // ancient dead are not worth the bytes.
+    orderBy: [{ status: 'asc' }, { bornAtCycle: 'desc' }],
+    take: limit,
+    select: {
+      id: true,
+      code: true,
+      generation: true,
+      status: true,
+      parentId: true,
+      capitalLamports: true,
+    },
+  });
+
+  return rows.map((row) => ({
+    i: row.id,
+    c: row.code,
+    g: row.generation,
+    a: row.status === 'ALIVE' ? 1 : 0,
+    k: Math.round(lamportsToSol(row.capitalLamports) * 1000) / 1000,
+    p: row.parentId,
+  }));
+}

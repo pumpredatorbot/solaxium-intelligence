@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server';
-import type { SpeedName } from '@/config/simulation';
-import { SPEEDS } from '@/config/simulation';
+import { DEFAULT_SPEED, isSpeedMultiplier } from '@/config/simulation';
 import { handle, readJson } from '@/lib/api';
 import { createSimulation, startSimulation } from '@/lib/engine/engine';
 import { startRunner } from '@/lib/engine/runner';
@@ -16,9 +15,7 @@ export const runtime = 'nodejs';
 export async function POST(request: NextRequest) {
   return handle(async () => {
     const body = await readJson(request);
-    const speed = (
-      SPEEDS.includes(body.speed as SpeedName) ? body.speed : 'NORMAL'
-    ) as SpeedName;
+    const speed = isSpeedMultiplier(body.speed) ? body.speed : DEFAULT_SPEED;
 
     let simulationId = typeof body.simulationId === 'string' ? body.simulationId : null;
     let created = false;

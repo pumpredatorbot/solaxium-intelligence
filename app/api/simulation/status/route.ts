@@ -1,7 +1,12 @@
 import { NextRequest } from 'next/server';
 import { handle } from '@/lib/api';
 import { getRunnerState } from '@/lib/engine/runner';
-import { getActiveSimulation, getDashboardStats, listSimulations } from '@/lib/repo/queries';
+import {
+  getActiveSimulation,
+  getCorePopulation,
+  getDashboardStats,
+  listSimulations,
+} from '@/lib/repo/queries';
 import { getSolanaConfig } from '@/config/solana';
 import { resolveProviderName } from '@/lib/ai/agent-brain';
 
@@ -21,6 +26,7 @@ export async function GET(request: NextRequest) {
         simulations: await listSimulations(10),
         solana: getSolanaConfig(),
         aiProvider: resolveProviderName(),
+        population: [],
       };
     }
 
@@ -31,6 +37,7 @@ export async function GET(request: NextRequest) {
       simulations: await listSimulations(10),
       solana: getSolanaConfig(),
       aiProvider: resolveProviderName(),
+      population: await getCorePopulation(simulation.id),
     };
   });
 }

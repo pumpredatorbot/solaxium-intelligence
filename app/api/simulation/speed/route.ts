@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { SPEEDS, type SpeedName } from '@/config/simulation';
+import { SPEED_MULTIPLIERS, isSpeedMultiplier } from '@/config/simulation';
 import { fail, handle, readJson } from '@/lib/api';
 import { setSpeed } from '@/lib/engine/runner';
 import { getActiveSimulation } from '@/lib/repo/queries';
@@ -15,9 +15,10 @@ export async function POST(request: NextRequest) {
       : (await getActiveSimulation())?.id;
 
   if (!simulationId) return fail('No simulation selected', 404);
-  if (!SPEEDS.includes(body.speed as SpeedName)) {
-    return fail(`speed must be one of ${SPEEDS.join(', ')}`, 400);
+  const speed = body.speed;
+  if (!isSpeedMultiplier(speed)) {
+    return fail(`speed must be one of ${SPEED_MULTIPLIERS.join(', ')}`, 400);
   }
 
-  return handle(async () => ({ runner: setSpeed(simulationId, body.speed as SpeedName) }));
+  return handle(async () => ({ runner: setSpeed(simulationId, speed) }));
 }

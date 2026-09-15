@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { fail, handle, readJson } from '@/lib/api';
 import { resetSimulation } from '@/lib/engine/engine';
-import { stopRunner } from '@/lib/engine/runner';
+import { drainRunner, stopRunner } from '@/lib/engine/runner';
 import { getActiveSimulation } from '@/lib/repo/queries';
 
 export const dynamic = 'force-dynamic';
@@ -22,6 +22,8 @@ export async function POST(request: NextRequest) {
 
   return handle(async () => {
     stopRunner(simulationId);
+    // Let any cycle already in flight finish before touching its rows.
+    await drainRunner(simulationId);
     const result = await resetSimulation(simulationId, {
       seed: typeof body.seed === 'string' ? body.seed : undefined,
       founderCount: typeof body.founderCount === 'number' ? body.founderCount : 3,

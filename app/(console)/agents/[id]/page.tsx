@@ -76,7 +76,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
           label={dead ? 'Final capital' : 'Capital'}
           value={agent.capitalSol.toFixed(4)}
           unit="SOL"
-          tone={dead ? 'danger' : 'sol'}
+          tone={dead ? 'danger' : 'accent'}
         />
         <Stat label="Total revenue" value={agent.totalRevenueSol.toFixed(4)} unit="SOL" />
         <Stat label="Total expenses" value={agent.totalExpensesSol.toFixed(4)} unit="SOL" />
@@ -84,7 +84,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
           label="Profit"
           value={`${agent.totalProfitSol >= 0 ? '+' : ''}${agent.totalProfitSol.toFixed(4)}`}
           unit="SOL"
-          tone={agent.totalProfitSol >= 0 ? 'sol' : 'danger'}
+          tone={agent.totalProfitSol >= 0 ? 'good' : 'danger'}
         />
         <Stat label="ROI" value={`${(agent.roi * 100).toFixed(1)}%`} />
         <Stat label="Cycles" value={String(agent.cycles)} hint={`Lifetime ${agent.lifetimeCycles}`} />
@@ -96,14 +96,12 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
         <Panel title="Capital over time" className="lg:col-span-2" bodyClassName="p-5">
           <AreaChart
             points={capitalSeries.map((p) => ({ x: p.cycle, y: p.capitalSol }))}
-            tone={dead ? 'danger' : 'sol'}
+            tone={dead ? 'var(--viz-bad)' : 'var(--viz-1)'}
             height={160}
-            label={`${agent.code} capital`}
+            unit="SOL"
+            format={{ decimals: 4 }}
+            emptyLabel="No ledger entries yet"
           />
-          <div className="mt-3 flex justify-between font-mono text-2xs text-ink-faint">
-            <span>cycle {capitalSeries[0]?.cycle ?? 0}</span>
-            <span>cycle {capitalSeries.at(-1)?.cycle ?? 0}</span>
-          </div>
         </Panel>
 
         <Panel title="Lineage" bodyClassName="p-5">

@@ -31,7 +31,6 @@ export function resolveConfig(overrides?: unknown): SimulationConfig {
     ...DEFAULT_SIMULATION_CONFIG,
     REVENUE_RANGES: { ...DEFAULT_SIMULATION_CONFIG.REVENUE_RANGES },
     EXPENSE_RANGES: { ...DEFAULT_SIMULATION_CONFIG.EXPENSE_RANGES },
-    SIMULATION_SPEED: { ...DEFAULT_SIMULATION_CONFIG.SIMULATION_SPEED },
   };
 
   if (!overrides || typeof overrides !== 'object') return config;
