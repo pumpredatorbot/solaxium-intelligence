@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Agent" ADD COLUMN     "momentum" DOUBLE PRECISION NOT NULL DEFAULT 1;

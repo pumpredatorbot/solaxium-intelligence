@@ -1,0 +1,315 @@
+// SOLAXIUM INTELLIGENCE — persistence layer.
+//
+// All monetary amounts are stored as *lamports* (integers, 1 SOL = 1e9
+// lamports). Storing SOL as a float would make the ledger non-reproducible;
+// integers keep `sum(transactions) == agent.capital` exact forever.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SimulationStatus {
+  CREATED
+  RUNNING
+  PAUSED
+  STOPPED
+  COMPLETED
+}
+
+enum AgentStatus {
+  ALIVE
+  DEAD
+}
+
+enum ActionType {
+  CREATE_PRODUCT
+  SELL_PRODUCT
+  OFFER_SERVICE
+  MARKETING
+  RESEARCH
+  REST
+  INVEST_IN_GROWTH
+  SAVE
+}
+
+enum ActionOutcome {
+  SUCCESS
+  PARTIAL
+  FAILURE
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TransactionType {
+  INITIAL_CAPITAL
+  REVENUE
+  EXPENSE
+  CLONE_BONUS
+  ADJUSTMENT
+}
+
+enum EventType {
+  SIMULATION_CREATED
+  SIMULATION_STARTED
+  SIMULATION_PAUSED
+  SIMULATION_STOPPED
+  SIMULATION_COMPLETED
+  GENERATION_STARTED
+  GENERATION_ENDED
+  AGENT_BORN
+  AGENT_ACTION
+  AGENT_REVENUE
+  AGENT_EXPENSE
+  AGENT_DEAD
+  CLONE_CREATED
+}
+
+enum MemoryKind {
+  STRATEGY
+  SUCCESS
+  FAILURE
+  INSIGHT
+  MILESTONE
+  SUMMARY
+}
+
+model Simulation {
+  id        String           @id @default(cuid())
+  name      String
+  seed      String
+  status    SimulationStatus @default(CREATED)
+  /// Counter-based PRNG cursor. seed + cursor fully determines the next draw,
+  /// so a paused simulation resumes on the exact same random stream.
+  rngCursor Int              @default(0)
+  cycle     Int              @default(0)
+  config    Json
+  startedAt DateTime?
+  endedAt   DateTime?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  agents       Agent[]
+  events       SimulationEvent[]
+  generations  Generation[]
+  actions      AgentAction[]
+  transactions Transaction[]
+  clones       Clone[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Agent {
+  id           String      @id @default(cuid())
+  simulationId String
+  /// Human-facing handle, e.g. "SX-001". Unique within a simulation.
+  code         String
+  name         String
+  generation   Int         @default(0)
+  parentId     String?
+  status       AgentStatus @default(ALIVE)
+
+  capitalLamports         BigInt
+  startingCapitalLamports BigInt
+  peakCapitalLamports     BigInt
+  totalRevenueLamports    BigInt @default(0)
+  totalExpensesLamports   BigInt @default(0)
+
+  /// Accumulated revenue multiplier from MARKETING / RESEARCH / CREATE_PRODUCT.
+  /// Decays back towards 1 each cycle.
+  momentum Float @default(1)
+
+  cycles        Int  @default(0)
+  bornAtCycle   Int  @default(0)
+  diedAtCycle   Int?
+  clonesCreated Int  @default(0)
+
+  /// Short label of the behavioural strategy the agent leans on.
+  strategy      String  @default("BALANCED")
+  strategyNotes String?
+
+  createdAt DateTime  @default(now())
+  diedAt    DateTime?
+
+  simulation     Simulation    @relation(fields: [simulationId], references: [id], onDelete: Cascade)
+  parent         Agent?        @relation("Lineage", fields: [parentId], references: [id], onDelete: SetNull)
+  children       Agent[]       @relation("Lineage")
+  traits         AgentTrait[]
+  memories       AgentMemory[]
+  actions        AgentAction[]
+  transactions   Transaction[]
+  wallet         AgentWallet?
+  clonesAsParent Clone[]       @relation("CloneParent")
+  clonesAsChild  Clone[]       @relation("CloneChild")
+
+  @@unique([simulationId, code])
+  @@index([simulationId, status])
+  @@index([simulationId, generation])
+  @@index([parentId])
+}
+
+model AgentTrait {
+  id      String @id @default(cuid())
+  agentId String
+  key     String
+  value   Float
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, key])
+  @@index([agentId])
+}
+
+model AgentMemory {
+  id         String     @id @default(cuid())
+  agentId    String
+  kind       MemoryKind
+  content    String
+  /// 0..1 — drives eviction when the memory budget is exceeded.
+  importance Float      @default(0.5)
+  cycle      Int        @default(0)
+  createdAt  DateTime   @default(now())
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, cycle])
+  @@index([agentId, kind])
+}
+
+model AgentAction {
+  id           String        @id @default(cuid())
+  agentId      String
+  simulationId String
+  cycle        Int
+  type         ActionType
+  outcome      ActionOutcome
+  riskLevel    RiskLevel
+
+  costLamports    BigInt
+  revenueLamports BigInt
+  netLamports     BigInt
+
+  confidence Float  @default(0.5)
+  reasoning  String
+  provider   String @default("demo")
+
+  createdAt DateTime @default(now())
+
+  agent      Agent      @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  simulation Simulation @relation(fields: [simulationId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, cycle])
+  @@index([simulationId, cycle])
+  @@index([simulationId, type])
+}
+
+/// Append-only economic ledger. `agent.capitalLamports` is a materialised view
+/// of this table and must always equal the latest `balanceAfterLamports`.
+model Transaction {
+  id                    String          @id @default(cuid())
+  agentId               String
+  simulationId          String
+  type                  TransactionType
+  /// Signed: positive credits the agent, negative debits it.
+  amountLamports        BigInt
+  balanceBeforeLamports BigInt
+  balanceAfterLamports  BigInt
+  cycle                 Int
+  metadata              Json?
+  createdAt             DateTime        @default(now())
+
+  agent      Agent      @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  simulation Simulation @relation(fields: [simulationId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, cycle])
+  @@index([simulationId, createdAt])
+  @@index([type])
+}
+
+model Clone {
+  id           String   @id @default(cuid())
+  simulationId String
+  parentId     String
+  childId      String   @unique
+  cycle        Int
+  /// Per-trait { from, to, delta } record of the mutation applied at birth.
+  mutations    Json
+  createdAt    DateTime @default(now())
+
+  simulation Simulation @relation(fields: [simulationId], references: [id], onDelete: Cascade)
+  parent     Agent      @relation("CloneParent", fields: [parentId], references: [id], onDelete: Cascade)
+  child      Agent      @relation("CloneChild", fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([simulationId])
+  @@index([parentId])
+}
+
+model SimulationEvent {
+  /// Monotonic ordering key for the activity feed.
+  seq          Int       @id @default(autoincrement())
+  simulationId String
+  type         EventType
+  cycle        Int
+  agentId      String?
+  agentCode    String?
+  message      String
+  data         Json?
+  createdAt    DateTime  @default(now())
+
+  simulation Simulation @relation(fields: [simulationId], references: [id], onDelete: Cascade)
+
+  @@index([simulationId, seq])
+  @@index([simulationId, type])
+  @@index([agentId])
+}
+
+model Generation {
+  id           String @id @default(cuid())
+  simulationId String
+  number       Int
+
+  agentCount Int @default(0)
+  aliveCount Int @default(0)
+  deadCount  Int @default(0)
+
+  totalRevenueLamports   BigInt @default(0)
+  totalExpensesLamports  BigInt @default(0)
+  totalCapitalLamports   BigInt @default(0)
+  averageCapitalLamports BigInt @default(0)
+  averageProfitLamports  BigInt @default(0)
+
+  bestAgentId   String?
+  bestAgentCode String?
+
+  startedAtCycle Int  @default(0)
+  endedAtCycle   Int?
+
+  simulation Simulation @relation(fields: [simulationId], references: [id], onDelete: Cascade)
+
+  @@unique([simulationId, number])
+  @@index([simulationId])
+}
+
+/// V1: a virtual address only. No keypair is generated, stored or derivable
+/// from this row — see docs/SECURITY.md.
+model AgentWallet {
+  id            String   @id @default(cuid())
+  agentId       String   @unique
+  provider      String   @default("simulation")
+  publicAddress String
+  network       String   @default("simulation")
+  createdAt     DateTime @default(now())
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([publicAddress])
+}
