@@ -8,7 +8,7 @@
   "description": "An evolutionary intelligence laboratory where autonomous AI agents must generate wealth to survive.",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
