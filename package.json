@@ -2,6 +2,9 @@
   "name": "solaxium-intelligence",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "description": "An evolutionary intelligence laboratory where autonomous AI agents must generate wealth to survive.",
   "scripts": {
     "dev": "next dev",
@@ -22,6 +25,7 @@
     "@anthropic-ai/sdk": "^0.125.0",
     "@prisma/client": "^6.19.3",
     "next": "^15.5.25",
+    "prisma": "^6.19.3",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "zod": "^4.6.5"
@@ -35,7 +39,6 @@
     "eslint-config-next": "^15.5.25",
     "playwright": "^1.63.0",
     "postcss": "^8.5.28",
-    "prisma": "^6.19.3",
     "tailwindcss": "^3.4.19",
     "tsx": "^4.23.13",
     "typescript": "^6.0.3",
