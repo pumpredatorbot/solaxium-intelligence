@@ -83,8 +83,19 @@ export interface TradingConfig {
   IMPACT_COEFFICIENT: number;
   /** Flat fee per fill, in SOL — stands in for priority fees and the 1% pump.fun fee. */
   FEE_SOL: number;
-  /** Per-step capital cost. Idling is not free. */
+  /**
+   * Capital cost per step. Idling is not free: without it, "never trade" would
+   * be a winning survival strategy and the population would fill with agents
+   * that do nothing.
+   */
   STEP_COST_SOL: number;
+  /**
+   * Steps between upkeep charges. Upkeep is accrued and posted as one ledger
+   * entry per interval rather than one per agent per step — the economics are
+   * identical, but it removes the single largest source of database writes in
+   * the loop.
+   */
+  UPKEEP_INTERVAL_STEPS: number;
 
   // --- evolution ---------------------------------------------------------
   MUTATION_RATE: number;
@@ -133,6 +144,7 @@ export const DEFAULT_TRADING_CONFIG: TradingConfig = {
   IMPACT_COEFFICIENT: 0.35,
   FEE_SOL: 0.0006,
   STEP_COST_SOL: 0.00015,
+  UPKEEP_INTERVAL_STEPS: 20,
 
   MUTATION_RATE: 0.08,
   MUTATION_CHANCE: 0.6,

@@ -73,6 +73,33 @@ enum EventType {
   CLONE_CREATED
 }
 
+/// How a run gets its prices. V1 ships FIXTURE and RECORDED; LIVE is the
+/// pump.fun websocket, which needs a long-lived host.
+enum MarketSource {
+  FIXTURE
+  RECORDED
+  LIVE
+}
+
+/// Which engine drives a run. ECONOMIC is the original synthetic economy;
+/// TRADING is the paper-trading engine.
+enum SimulationMode {
+  ECONOMIC
+  TRADING
+}
+
+enum PositionStatus {
+  OPEN
+  CLOSED
+}
+
+enum PositionExit {
+  TP1
+  TP2
+  STOP
+  TIMEOUT
+}
+
 enum MemoryKind {
   STRATEGY
   SUCCESS
@@ -92,11 +119,17 @@ model Simulation {
   rngCursor Int              @default(0)
   cycle     Int              @default(0)
   config    Json
+  /// Which engine drives this run.
+  mode      SimulationMode   @default(ECONOMIC)
+  /// The market this run trades. Null for ECONOMIC runs.
+  datasetId String?
   startedAt DateTime?
   endedAt   DateTime?
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
+  dataset      MarketDataset?    @relation(fields: [datasetId], references: [id], onDelete: SetNull)
+  positions    Position[]
   agents       Agent[]
   events       SimulationEvent[]
   generations  Generation[]
@@ -133,6 +166,20 @@ model Agent {
   diedAtCycle   Int?
   clonesCreated Int  @default(0)
 
+  // --- paper-trading record ------------------------------------------
+  /// Evidence-weighted fitness. This is what selection reads.
+  fitness      Float @default(0.5)
+  /// Pre-shrinkage score, kept so the population prior can be recomputed.
+  rawFitness   Float @default(0.5)
+  tradesClosed Int   @default(0)
+  wins         Int   @default(0)
+  tp1Hits      Int   @default(0)
+  tp2Hits      Int   @default(0)
+  stops        Int   @default(0)
+  timeouts     Int   @default(0)
+  maxDrawdown  Float @default(0)
+  avgHoldSteps Float @default(0)
+
   /// Short label of the behavioural strategy the agent leans on.
   strategy      String  @default("BALANCED")
   strategyNotes String?
@@ -150,6 +197,7 @@ model Agent {
   wallet         AgentWallet?
   clonesAsParent Clone[]       @relation("CloneParent")
   clonesAsChild  Clone[]       @relation("CloneChild")
+  positions      Position[]
 
   @@unique([simulationId, code])
   @@index([simulationId, status])
@@ -314,4 +362,103 @@ model AgentWallet {
   agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
   @@index([publicAddress])
+}
+
+// ---------------------------------------------------------------------------
+// Paper trading
+// ---------------------------------------------------------------------------
+
+/// A market a population can be run against.
+///
+/// Recording a market once and replaying it many times is what restores
+/// determinism after the pivot to real prices, and it is the only way to run
+/// enough generations to observe selection: at a 5-second average hold, live
+/// trading would take weeks to do what a replay does in minutes.
+model MarketDataset {
+  id         String       @id @default(cuid())
+  /// Stable key, e.g. "fixture:seed-1". Lets a run name what it traded.
+  key        String       @unique
+  source     MarketSource
+  /// Seed for FIXTURE datasets; null for recorded ones.
+  seed       String?
+  steps      Int
+  stepMs     Int
+  tokenCount Int          @default(0)
+  /// Provenance: archetype mix, rug rate, capture window.
+  meta       Json?
+  createdAt  DateTime     @default(now())
+
+  tokens      Token[]
+  simulations Simulation[]
+
+  @@index([source])
+}
+
+/// A token within a dataset. For RECORDED datasets `mint` is the real
+/// pump.fun mint address.
+model Token {
+  id                  String   @id @default(cuid())
+  datasetId           String
+  mint                String
+  symbol              String
+  name                String
+  launchStep          Int
+  launchedAt          DateTime
+  initialMcapLamports BigInt
+
+  dataset   MarketDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  positions Position[]
+
+  @@unique([datasetId, mint])
+  @@index([datasetId, launchStep])
+}
+
+/// A paper position.
+///
+/// NO REAL VALUE MOVES: this is an accounting entry against recorded prices.
+/// There is no wallet, no key and no transaction behind it.
+model Position {
+  id           String         @id @default(cuid())
+  agentId      String
+  simulationId String
+  tokenId      String?
+  mint         String
+  symbol       String
+  status       PositionStatus @default(OPEN)
+
+  entryStep           Int
+  /// Quoted price before costs.
+  quotedEntryLamports BigInt
+  /// Price actually paid, after slippage.
+  entryPriceLamports  BigInt
+  /// Capital committed.
+  sizeLamports        BigInt
+
+  takeProfitMultiple Float
+  stopMultiple       Float
+  maxHoldSteps       Int
+
+  exitStep          Int?
+  exitReason        PositionExit?
+  exitPriceLamports BigInt?
+  proceedsLamports  BigInt?
+  /// proceeds - (size + entry fee). Signed.
+  pnlLamports       BigInt?
+  returnPct         Float?
+  holdSteps         Int?
+
+  feesLamports     BigInt @default(0)
+  slippageLamports BigInt @default(0)
+
+  openedAt DateTime  @default(now())
+  closedAt DateTime?
+
+  agent      Agent      @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  simulation Simulation @relation(fields: [simulationId], references: [id], onDelete: Cascade)
+  token      Token?     @relation(fields: [tokenId], references: [id], onDelete: SetNull)
+
+  @@index([agentId, status])
+  @@index([simulationId, entryStep])
+  @@index([simulationId, status])
+  @@index([mint])
 }
