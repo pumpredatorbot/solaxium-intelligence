@@ -335,7 +335,12 @@ export async function runTradingStep(
   const living = await prisma.agent.findMany({
     where: { simulationId, status: 'ALIVE' },
     orderBy: { code: 'asc' },
-    include: { traits: true, positions: { where: { status: 'OPEN' } } },
+    include: {
+      traits: true,
+      // A nested include carries no ordering guarantee either, and the order
+      // positions close in decides the order of their ledger entries.
+      positions: { where: { status: 'OPEN' }, orderBy: [{ entryStep: 'asc' }, { mint: 'asc' }] },
+    },
   });
 
   for (const agent of living) {
@@ -488,8 +493,12 @@ export async function runTradingStep(
   //    re-reading every closed position of every agent on every step.
   const upkeepDue = step % config.UPKEEP_INTERVAL_STEPS === 0;
   const stepCost = solToLamports(config.STEP_COST_SOL) * config.UPKEEP_INTERVAL_STEPS;
+  // Ordered because the mean is a float sum: the same values added in a
+  // different order differ in the last bits, and that difference propagates
+  // into every shrunk fitness score.
   const priorRows = await prisma.agent.findMany({
     where: { simulationId, tradesClosed: { gt: 0 } },
+    orderBy: { code: 'asc' },
     select: { rawFitness: true },
   });
   const prior = populationMeanRaw(priorRows.map((r) => r.rawFitness));
@@ -521,8 +530,13 @@ export async function runTradingStep(
     // cached path and the recomputed path have one shared shape.
     let summary = cachedBreakdown(st);
     if (hadClose) {
+      // Chronological, and not merely for tidiness: max drawdown walks the
+      // equity curve these trades imply, so a different order yields a
+      // different — and wrong — worst peak-to-trough. Unordered, it also made
+      // two runs of the same seed disagree on fitness.
       const closedPositions = await prisma.position.findMany({
         where: { agentId: agent.id, status: 'CLOSED' },
+        orderBy: [{ exitStep: 'asc' }, { mint: 'asc' }],
         select: { returnPct: true, pnlLamports: true, exitReason: true, holdSteps: true },
       });
       const trades: TradeRecord[] = closedPositions.map((p) => ({

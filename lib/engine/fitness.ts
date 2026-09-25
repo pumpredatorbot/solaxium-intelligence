@@ -121,6 +121,8 @@ export function computeFitness(input: FitnessInput): FitnessBreakdown {
   const sharpe = n > 1 ? meanReturn / (stdReturn + DISPERSION_FLOOR) : 0;
 
   // --- drawdown, from the equity curve the trades imply -----------------
+  // `trades` must be in the order they closed: this walk is a sequence, not a
+  // set, and a shuffled input reports a drawdown the agent never suffered.
   let equity = startingCapitalLamports;
   let peak = startingCapitalLamports;
   let maxDrawdown = 0;
