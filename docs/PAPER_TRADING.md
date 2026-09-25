@@ -74,11 +74,41 @@ recorded capture.
 npm run demo:market
 ```
 
+…or **Trading → Run control → Seed a generated market**, which exists because a
+serverless deployment has no shell to run a script in.
+
 This writes a locally generated market as a `RECORDED` dataset so the stored-tick
 panels — the token flow, marked-to-market open positions — can be exercised.
 It is **not** real data, its provenance says so, and the console labels a market
 by that provenance rather than by `RECORDED`, so it can never be displayed as
 real pump.fun activity.
+
+Its archetypes are weighted the way the synthetic market's are (roughly 80%
+losers), and each carries a true buy pressure that a snapshot shows blurred by
+noise decaying with the token's age. That last part is not decoration: without a
+signal correlated with the truth, a market has traps and nothing to learn from
+them, and a population can only die. Early on a rug and a runner look alike;
+waiting resolves them but costs entry price, and that trade-off is what the
+population is evolving to solve.
+
+## Running on a serverless host
+
+The engine's runner is an in-process timer. On a long-lived Node host it ticks
+on its own. On a serverless host — Vercel, and anything that freezes a function
+between requests — it stops the moment a response is sent, so a run marked
+RUNNING sits at the same step forever while the console shows a live badge over
+a frozen simulation. The symptom is unmistakable: SIM TIME advances a few
+seconds while REAL TIME reads zero.
+
+**Trading → Run control → Run from browser** makes the page the clock instead.
+It asks the server to advance a batch of steps at a time — one step per round
+trip would cap the run at network latency rather than engine speed — and it is
+an explicit toggle, because a clock that runs when nobody expects it is worse
+than no clock. Measured at ~9 steps/s over HTTP locally. The run advances only
+while the tab is open.
+
+A long-lived host (Railway, Fly, a VM) does not need any of this: there the
+in-process runner and the boot-time resume handle it.
 
 ## Prices
 
