@@ -7,6 +7,7 @@ import { TradeTape } from '@/components/trading/trade-tape';
 import { OpenPositions } from '@/components/trading/open-positions';
 import { TraderCards } from '@/components/trading/trader-cards';
 import { RunLauncher } from '@/components/trading/run-launcher';
+import { StartHere } from '@/components/trading/start-here';
 import { prisma } from '@/lib/db';
 import { getActiveSimulation } from '@/lib/repo/queries';
 import { getRunnerState } from '@/lib/engine/runner';
@@ -67,12 +68,24 @@ export default async function TradingPage() {
 
   return (
     <TradingProvider initial={snapshot}>
+      {/* The eyebrow states the market actually being traded. Claiming "real
+          pump.fun launches" above a synthetic market was the page contradicting
+          itself in two adjacent lines. */}
       <ConsoleHeader
-        eyebrow="Paper execution on real pump.fun launches"
+        eyebrow={
+          snapshot.mode !== 'TRADING'
+            ? 'Evolutionary paper execution'
+            : snapshot.flow?.origin === 'pump.fun'
+              ? 'Paper execution on real pump.fun launches'
+              : snapshot.dataset?.source === 'RECORDED'
+                ? `Paper execution on a recorded market — ${snapshot.flow?.origin ?? 'unattributed'}`
+                : 'Paper execution on a synthetic market'
+        }
         title="Paper trading"
       />
 
       <div className="space-y-3">
+        <StartHere />
         <TradingKpis />
 
         {/* The three live surfaces: what the market offered, what was decided,

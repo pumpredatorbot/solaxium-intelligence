@@ -28,6 +28,8 @@ export function Topbar() {
     step,
     setSpeed,
     solana,
+    browserClock,
+    browserClockRate,
   } = useConsole();
 
   const speed = runner?.speed ?? 1;
@@ -83,6 +85,19 @@ export function Topbar() {
             <span className={`h-1.5 w-1.5 rounded-full ${running ? 'animate-breathe bg-good' : 'bg-ink-ghost'}`} />
             {simulation?.status ?? 'No run'}
           </span>
+
+          {/* Said out loud, because the page silently advancing the run would
+              be worse than the run not advancing at all. */}
+          {browserClock ? (
+            <span
+              className="flex items-center gap-1.5 rounded border border-cy-deep bg-cy/[0.08] px-2 py-1
+                         font-mono text-3xs uppercase tracking-widest2 text-cy"
+              title="This host freezes the engine's own timer between requests, so this page is advancing the run. It keeps running only while this tab is open."
+            >
+              <span className="h-1.5 w-1.5 animate-breathe rounded-full bg-cy" />
+              Driven here · {browserClockRate.toFixed(1)}/s
+            </span>
+          ) : null}
 
           <div className="flex items-center gap-1">
             <button

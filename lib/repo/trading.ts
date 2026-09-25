@@ -36,6 +36,14 @@ export interface TradingStats {
   unrealisedPnlSol: number;
   /** Total paid in fees and slippage. The cost of playing. */
   costsSol: number;
+  /**
+   * Capital currently committed to open positions.
+   *
+   * It leaves `capitalSol` the moment a position opens, so without this figure
+   * an agent mid-trade looks poorer than it is and "vs seeded" reads as a loss
+   * that has not happened.
+   */
+  committedSol: number;
 
   /** Execution. */
   openPositions: number;
@@ -116,6 +124,9 @@ export async function getTradingStats(simulationId: string): Promise<TradingStat
     unrealisedPnlSol: lamportsToSol(unrealised),
     costsSol: lamportsToSol(
       toNum(closed._sum.feesLamports ?? 0n) + toNum(closed._sum.slippageLamports ?? 0n),
+    ),
+    committedSol: lamportsToSol(
+      open.reduce((sum, position) => sum + toNum(position.sizeLamports), 0),
     ),
 
     openPositions: open.length,

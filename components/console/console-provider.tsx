@@ -68,6 +68,17 @@ interface ConsoleContextValue extends ConsoleStatus {
   error: string | null;
   /** Wall-clock ms the current run has been observed by this client. */
   realElapsedMs: number;
+  /**
+   * True when this page is the thing advancing the run.
+   *
+   * The engine's runner is an in-process timer, so on a serverless host it
+   * stops the moment a response is sent and a run marked RUNNING never moves.
+   * Rather than leave the play button doing nothing, the page takes over — and
+   * says so, because a clock nobody knows about is worse than no clock.
+   */
+  browserClock: boolean;
+  /** Steps per second this page is achieving, when it is driving. */
+  browserClockRate: number;
   start: (options?: { founderCount?: number; seed?: string; name?: string }) => Promise<void>;
   pause: () => Promise<void>;
   stop: () => Promise<void>;
@@ -117,6 +128,9 @@ function sampleOf(stats: DashboardStats): StatsSample {
   };
 }
 
+/** Steps requested per round trip, by speed. */
+const BATCH_FOR_SPEED: Record<number, number> = { 0.5: 1, 1: 4, 2: 8, 5: 16, 10: 28, 25: 40 };
+
 export function ConsoleProvider({
   initial,
   initialEvents,
@@ -152,8 +166,12 @@ export function ConsoleProvider({
     initialEvents.filter((e) => (LIFECYCLE_TYPES as readonly string[]).includes(e.type)).at(-1)
       ?.seq ?? 0,
   );
+  const [browserClock, setBrowserClock] = useState(false);
+  const [browserClockRate, setBrowserClockRate] = useState(0);
+
   const simulationId = status.simulation?.id ?? null;
   const running = status.simulation?.status === 'RUNNING';
+  const cycle = status.simulation?.cycle ?? 0;
 
   // --- polling ------------------------------------------------------------
   const refresh = useCallback(async () => {
@@ -253,6 +271,95 @@ export function ConsoleProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running]);
 
+  // --- the clock ----------------------------------------------------------
+  //
+  // A run only advances if something advances it. On a long-lived host that is
+  // the engine's own runner. On a serverless host the runner is frozen between
+  // requests, so the run sits still under a live badge — which is exactly what
+  // a play button that appears to do nothing looks like.
+  //
+  // So: watch whether the cycle is actually moving. If it is not, this page
+  // drives it. Batched, because one step per round trip would cap the run at
+  // network latency rather than engine speed.
+  const stalledSince = useRef<number | null>(null);
+  const lastSeenCycle = useRef(cycle);
+  const driving = useRef(false);
+
+  useEffect(() => {
+    if (cycle !== lastSeenCycle.current) {
+      lastSeenCycle.current = cycle;
+      stalledSince.current = null;
+    }
+  }, [cycle]);
+
+  useEffect(() => {
+    if (!running || !simulationId) {
+      stalledSince.current = null;
+      setBrowserClock(false);
+      setBrowserClockRate(0);
+      return;
+    }
+
+    let cancelled = false;
+    const samples: number[] = [];
+
+    const loop = async () => {
+      while (!cancelled) {
+        // Give the server's own runner a fair chance first: only take over
+        // once the cycle has genuinely not moved for a few seconds.
+        if (!driving.current) {
+          if (stalledSince.current === null) stalledSince.current = Date.now();
+          if (Date.now() - stalledSince.current < 3500) {
+            await new Promise((r) => setTimeout(r, 700));
+            continue;
+          }
+          driving.current = true;
+          setBrowserClock(true);
+        }
+
+        const startedAt = performance.now();
+        try {
+          const response = await fetch('/api/simulation/tick', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ simulationId, steps: BATCH_FOR_SPEED[speed] ?? 8 }),
+          });
+          if (!response.ok) {
+            // A finished or paused run answers 409; stop rather than hammer it.
+            cancelled = true;
+            break;
+          }
+          const report = await response.json();
+          const advanced: number = report?.advanced ?? 1;
+          samples.push(advanced / Math.max((performance.now() - startedAt) / 1000, 0.001));
+          if (samples.length > 5) samples.shift();
+          if (cancelled) break;
+          setBrowserClockRate(samples.reduce((a, b) => a + b, 0) / samples.length);
+          await refresh();
+          if (report?.status && report.status !== 'RUNNING') break;
+        } catch {
+          break;
+        }
+        // A breath, so a fast engine cannot starve the console's own polling.
+        await new Promise((r) => setTimeout(r, 120));
+      }
+
+      driving.current = false;
+      if (!cancelled) {
+        setBrowserClock(false);
+        setBrowserClockRate(0);
+      }
+    };
+
+    void loop();
+    return () => {
+      cancelled = true;
+      driving.current = false;
+      setBrowserClock(false);
+      setBrowserClockRate(0);
+    };
+  }, [running, simulationId, speed, refresh]);
+
   // --- controls -----------------------------------------------------------
   const call = useCallback(
     async (endpoint: string, body: Record<string, unknown>, label: string) => {
@@ -294,6 +401,8 @@ export function ConsoleProvider({
       busy,
       error,
       realElapsedMs,
+      browserClock,
+      browserClockRate,
       clearError: () => setError(null),
       refresh,
       start: async (options = {}) => {
@@ -351,6 +460,8 @@ export function ConsoleProvider({
       busy,
       error,
       realElapsedMs,
+      browserClock,
+      browserClockRate,
       refresh,
       call,
       speed,

@@ -24,7 +24,10 @@ export function TradingKpis() {
     );
   }
 
-  const netSol = stats.capitalSol - stats.startingCapitalSol;
+  // Capital on hand excludes what is committed to open positions, so the
+  // comparison against seeded capital has to add it back or it reads as a loss
+  // that has not happened.
+  const netSol = stats.capitalSol + stats.committedSol - stats.startingCapitalSol;
 
   return (
     <div className="space-y-2">
@@ -42,9 +45,13 @@ export function TradingKpis() {
         />
         <Kpi
           label="Capital"
-          value={`${stats.capitalSol.toFixed(3)} SOL`}
-          sub={`${signedSol(netSol, 3)} vs seeded`}
-          tone={netSol > 0 ? 'good' : netSol < 0 ? 'bad' : undefined}
+          value={`${(stats.capitalSol + stats.committedSol).toFixed(3)} SOL`}
+          sub={
+            stats.openPositions > 0
+              ? `${signedSol(netSol, 3)} vs seeded · ${stats.committedSol.toFixed(2)} in ${stats.openPositions} open`
+              : `${signedSol(netSol, 3)} vs seeded`
+          }
+          subTone={netSol > 0 ? 'good' : netSol < 0 ? 'bad' : undefined}
         />
         <Kpi
           label="Population"
@@ -97,19 +104,19 @@ export function TradingKpis() {
 }
 
 function Kpi({
-  label, value, sub, tone,
-}: { label: string; value: string; sub: string; tone?: 'good' | 'bad' }) {
+  label, value, sub, tone, subTone,
+}: {
+  label: string; value: string; sub: string;
+  tone?: 'good' | 'bad'; subTone?: 'good' | 'bad';
+}) {
+  const colour = (t?: 'good' | 'bad') =>
+    t === 'good' ? 'text-good' : t === 'bad' ? 'text-bad' : null;
+
   return (
     <div className="panel min-w-0 px-3 py-2.5">
       <p className="label truncate">{label}</p>
-      <p
-        className={`metric mt-1 truncate text-base ${
-          tone === 'good' ? 'text-good' : tone === 'bad' ? 'text-bad' : 'text-ink'
-        }`}
-      >
-        {value}
-      </p>
-      <p className="mt-0.5 truncate text-3xs text-ink-ghost">{sub}</p>
+      <p className={`metric mt-1 truncate text-base ${colour(tone) ?? 'text-ink'}`}>{value}</p>
+      <p className={`mt-0.5 truncate text-3xs ${colour(subTone) ?? 'text-ink-ghost'}`}>{sub}</p>
     </div>
   );
 }
