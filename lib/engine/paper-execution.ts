@@ -154,7 +154,16 @@ export function stepPosition(
 
   if (tick.priceLamports >= takeProfitPrice) {
     quotedExit = Math.round(takeProfitPrice);
-    exitReason = position.takeProfitMultiple >= config.TP2_MULTIPLE - 1e-9 ? 'TP2' : 'TP1';
+    // TP1 and TP2 are bands, not two exact constants. The take-profit target is
+    // a continuum the genome sets anywhere between TP1_MULTIPLE and
+    // TP2_MULTIPLE, so requiring exact equality with ×2.0 to earn the TP2 label
+    // made it reachable only by a genome whose bias was precisely zero — the
+    // whole category was effectively dead, and every patient agent was reported
+    // as if it had banked fast. Splitting at the midpoint makes both labels
+    // describe a real behaviour: TP1 banked the quick +50%, TP2 held out for
+    // something near the double.
+    const band = (config.TP1_MULTIPLE + config.TP2_MULTIPLE) / 2;
+    exitReason = position.takeProfitMultiple >= band ? 'TP2' : 'TP1';
   } else if (tick.priceLamports <= stopPrice) {
     exitReason = 'STOP';
   } else if (heldSteps >= position.maxHoldSteps) {

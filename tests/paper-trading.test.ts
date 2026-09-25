@@ -73,6 +73,25 @@ describe('exit rules', () => {
   const strategy = { ...decodeStrategy(FOUNDER_TRADING_TRAITS, C), takeProfitMultiple: 1.5, stopMultiple: 0.7, maxHoldSteps: 10 };
   const open = () => openPosition({ tick: tick(100), symbol: 'X', step: 0, capitalLamports: CAPITAL, strategy, config: C })!;
 
+  it('labels a patient target TP2 and a fast one TP1', () => {
+    // The target is a continuum between ×1.5 and ×2.0, so the two labels have to
+    // be bands. Requiring exact equality with ×2.0 made TP2 unreachable for
+    // every genome but one, and reported patient agents as fast bankers.
+    const fast = { ...strategy, takeProfitMultiple: C.TP1_MULTIPLE };
+    const patient = { ...strategy, takeProfitMultiple: C.TP2_MULTIPLE };
+    const middling = { ...strategy, takeProfitMultiple: (C.TP1_MULTIPLE + C.TP2_MULTIPLE) / 2 - 0.01 };
+
+    const settleAt = (s: typeof strategy) => {
+      const p = openPosition({ tick: tick(100), symbol: 'X', step: 0, capitalLamports: CAPITAL, strategy: s, config: C })!;
+      const spike = Math.round(p.entryPriceLamports * 4);
+      return resolvePosition(p, [tick(spike)], C).exitReason;
+    };
+
+    expect(settleAt(fast)).toBe('TP1');
+    expect(settleAt(patient)).toBe('TP2');
+    expect(settleAt(middling)).toBe('TP1');
+  });
+
   it('takes profit at the target, not at a gapped-through better price', () => {
     const p = open();
     const spike = Math.round(p.entryPriceLamports * 5);

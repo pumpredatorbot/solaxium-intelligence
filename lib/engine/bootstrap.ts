@@ -9,9 +9,10 @@
  * This reconciles the two: on boot, every simulation the database still
  * considers RUNNING gets its loop back.
  *
- * It deliberately does not touch the engine. It only decides *which* runners
- * to arm; `runCycle` and the economy are untouched, and a resumed run
- * continues on its persisted RNG cursor exactly as a pause/resume would.
+ * It deliberately does not touch either engine. It only decides *which* runners
+ * to arm; what a runner then advances — an economic cycle or a market step — is
+ * a property of the run, and a resumed run continues on its persisted RNG
+ * cursor exactly as a pause/resume would.
  */
 
 import { prisma } from '@/lib/db';

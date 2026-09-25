@@ -14,10 +14,12 @@ import {
   IconPortfolio,
   IconReplay,
   IconSettings,
+  IconTrading,
 } from './nav-icons';
 
 const NAV = [
   { href: '/overview', label: 'Overview', Icon: IconOverview },
+  { href: '/trading', label: 'Trading', Icon: IconTrading },
   { href: '/agents', label: 'Agents', Icon: IconAgents },
   { href: '/engines', label: 'Engines', Icon: IconEngines },
   { href: '/market', label: 'Market', Icon: IconMarket },

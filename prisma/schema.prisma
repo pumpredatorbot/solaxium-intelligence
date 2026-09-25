@@ -405,12 +405,47 @@ model Token {
   launchStep          Int
   launchedAt          DateTime
   initialMcapLamports BigInt
+  /// Trades captured for this token. Recorded datasets only.
+  tradeCount          Int      @default(0)
+  /// Steps of tick data held, so the UI can show how much evidence exists.
+  tickCount           Int      @default(0)
 
   dataset   MarketDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
   positions Position[]
+  ticks     Tick[]
 
   @@unique([datasetId, mint])
   @@index([datasetId, launchStep])
+}
+
+/// One observation of a real token, on the engine's step grid.
+///
+/// Only RECORDED datasets store ticks: a FIXTURE market is regenerated from its
+/// seed, and real pump.fun history cannot be. Prices are in lamports per 1e6
+/// tokens (see PRICE_LOT) because a single pump.fun token is worth a few
+/// lamports and integer rounding would destroy the signal.
+model Tick {
+  id             String @id @default(cuid())
+  tokenId        String
+  datasetId      String
+  mint           String
+  /// Absolute step in the dataset's grid.
+  step           Int
+  /// Milliseconds since this token launched.
+  ageMs          Int
+  priceLamports  BigInt
+  mcapLamports   BigInt
+  /// Cumulative since launch.
+  buys           Int
+  sells          Int
+  volumeLamports BigInt
+  holders        Int
+  momentum       Float
+
+  token Token @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+  @@unique([datasetId, mint, step])
+  @@index([datasetId, step])
 }
 
 /// A paper position.

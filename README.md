@@ -40,6 +40,28 @@ Open <http://localhost:3000/simulation> and press **Create & start**. Three foun
 with 1 SOL each and the population begins to act. No API key is required — the default `demo`
 brain is a real local decision engine (see [`docs/AGENT_SYSTEM.md`](docs/AGENT_SYSTEM.md)).
 
+### Paper trading on real pump.fun launches
+
+The population can also be run as a **paper-trading** engine: agents snipe
+memecoin launches, take profit at ×1.5 or ×2.0, and live or die by their P&L.
+
+```bash
+npm run record                       # capture real pump.fun launches + trades (read-only)
+npm run trade -- --dataset <id>      # evolve a population against that capture
+```
+
+Then open <http://localhost:3000/trading> for the closed-P&L tape, the token
+flow with per-agent ENTER/SKIP, and the generation tree. Details, including the
+fitness system and the determinism guarantees, are in
+[`docs/PAPER_TRADING.md`](docs/PAPER_TRADING.md).
+
+Still simulation only: the capture is read-only public market data, and a
+position is an accounting entry. No wallet, no key, no transaction.
+
+If pump.fun is not reachable from your environment, `npm run demo:market` seeds
+a locally generated market so the recorded path can be exercised. It is labelled
+as synthetic everywhere it appears and is never presented as real data.
+
 ### Headless
 
 ```bash

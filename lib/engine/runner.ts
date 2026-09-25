@@ -16,6 +16,7 @@ import {
 } from '@/config/simulation';
 import { prisma } from '@/lib/db';
 import { pauseSimulation, runCycle, type CycleReport } from './engine';
+import { runTradingStep } from './trading-engine';
 
 export interface RunnerState {
   simulationId: string;
@@ -128,7 +129,7 @@ async function tick(entry: RunnerEntry): Promise<void> {
   try {
     const simulation = await prisma.simulation.findUnique({
       where: { id: entry.simulationId },
-      select: { status: true },
+      select: { status: true, mode: true },
     });
 
     if (!simulation || simulation.status !== 'RUNNING') {
@@ -136,10 +137,15 @@ async function tick(entry: RunnerEntry): Promise<void> {
       return;
     }
 
+    // One loop drives both engines. Which one advances is a property of the
+    // run, not of the runner: a TRADING run steps a market, an ECONOMIC run
+    // runs a cycle, and both report the same `status` the loop reacts to.
+    const advance = simulation.mode === 'TRADING' ? runTradingStep : runCycle;
+
     const { batch } = speedSchedule(entry.speed);
-    let report: CycleReport | null = null;
+    let report: { status: CycleReport['status'] } | null = null;
     for (let i = 0; i < batch; i++) {
-      report = await runCycle(entry.simulationId);
+      report = await advance(entry.simulationId);
       entry.cyclesRun++;
       if (report.status !== 'RUNNING') break;
     }

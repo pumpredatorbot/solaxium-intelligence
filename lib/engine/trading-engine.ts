@@ -25,7 +25,7 @@ import {
 import { prisma } from '@/lib/db';
 import { createRng, generateSeed, type SeededRandom } from '@/lib/rng';
 import { lamportsToSol, solToLamports, toNum } from '@/lib/sol';
-import { marketFor } from '@/lib/market/registry';
+import { marketForAsync } from '@/lib/market/registry';
 import { FixtureMarket } from '@/lib/market/fixture-market';
 import type { MarketFeed } from '@/lib/market/types';
 import { emit } from './events';
@@ -56,6 +56,12 @@ export interface CreateTradingRunInput {
   founderCount?: number;
   steps?: number;
   config?: Partial<TradingConfig>;
+  /**
+   * An existing dataset to trade — a real pump.fun capture. When given, no
+   * synthetic market is generated and `marketSeed`/`steps` are ignored: the
+   * capture defines the market.
+   */
+  datasetId?: string;
 }
 
 export interface CreateTradingRunResult {
@@ -80,27 +86,42 @@ export async function createTradingRun(
   const founderCount = Math.min(Math.max(input.founderCount ?? config.FOUNDER_COUNT, 1), 400);
 
   // --- dataset ----------------------------------------------------------
-  const key = `fixture:${marketSeed}:${steps}`;
-  const market = new FixtureMarket({ seed: marketSeed, steps });
-  const summary = market.summary();
+  // Either an existing capture (real pump.fun data) or a freshly generated
+  // synthetic market. The engine treats both identically from here on.
+  let dataset: { id: string; key: string; source: string; steps: number; stepMs: number; tokenCount: number };
+  let datasetLabel: string;
 
-  const dataset = await prisma.marketDataset.upsert({
-    where: { key },
-    create: {
-      key,
-      source: 'FIXTURE',
-      seed: marketSeed,
-      steps,
-      stepMs: summary.stepMs,
-      tokenCount: summary.tokenCount,
-      meta: {
-        doubleRate: summary.doubleRate,
-        rugRate: summary.rugRate,
-        archetypes: market.archetypeBreakdown(),
+  if (input.datasetId) {
+    const existing = await prisma.marketDataset.findUnique({ where: { id: input.datasetId } });
+    if (!existing) throw new Error(`Unknown dataset ${input.datasetId}`);
+    if (existing.tokenCount === 0) {
+      throw new Error(`Dataset ${existing.key} holds no tokens; nothing to trade.`);
+    }
+    dataset = existing;
+    datasetLabel = `${existing.tokenCount} real tokens (${existing.key})`;
+  } else {
+    const key = `fixture:${marketSeed}:${steps}`;
+    const market = new FixtureMarket({ seed: marketSeed, steps });
+    const summary = market.summary();
+    dataset = await prisma.marketDataset.upsert({
+      where: { key },
+      create: {
+        key,
+        source: 'FIXTURE',
+        seed: marketSeed,
+        steps,
+        stepMs: summary.stepMs,
+        tokenCount: summary.tokenCount,
+        meta: {
+          doubleRate: summary.doubleRate,
+          rugRate: summary.rugRate,
+          archetypes: market.archetypeBreakdown(),
+        },
       },
-    },
-    update: {},
-  });
+      update: {},
+    });
+    datasetLabel = `${summary.tokenCount} synthetic tokens (seed ${marketSeed})`;
+  }
 
   const simulation = await prisma.simulation.create({
     data: {
@@ -119,8 +140,8 @@ export async function createTradingRun(
     simulationId: simulation.id,
     type: 'SIMULATION_CREATED',
     cycle: 0,
-    message: `Paper-trading run created on ${summary.tokenCount} tokens (seed ${seed}, market ${marketSeed}).`,
-    data: { seed, marketSeed, founderCount, dataset: key },
+    message: `Paper-trading run created on ${datasetLabel} — seed ${seed}.`,
+    data: { seed, marketSeed, founderCount, dataset: dataset.key, source: dataset.source },
   });
 
   const rng = createRng(seed, 0);
@@ -305,7 +326,7 @@ export async function runTradingStep(
   }
 
   const config = resolveConfig(simulation.config as Partial<TradingConfig>);
-  const market = marketFor(simulation.dataset);
+  const market = await marketForAsync(simulation.dataset);
   const rng = createRng(simulation.seed, simulation.rngCursor);
   const step = simulation.cycle + 1;
 

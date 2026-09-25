@@ -2,6 +2,7 @@
  * Headless paper-trading run.
  *
  *   npm run trade -- --steps 400 --founders 80 --seed t1
+ *   npm run trade -- --dataset <id>        # trade a real pump.fun capture
  *
  * Drives the persisted engine without Next.js, and checks the ledger invariant
  * at the end: every agent's balance must still be recomputable from its own
@@ -23,12 +24,14 @@ async function main() {
   const steps = Number(arg('steps', '400'));
   const founders = Number(arg('founders', '80'));
   const seed = arg('seed', 't1');
+  const datasetId = arg('dataset', '');
 
   const run = await createTradingRun({
     name: `CLI ${seed}`,
     seed,
     founderCount: founders,
     steps: steps + 50,
+    datasetId: datasetId || undefined,
   });
   await prisma.simulation.update({
     where: { id: run.simulationId },
@@ -36,7 +39,14 @@ async function main() {
   });
 
   console.log(`\nsimulation ${run.simulationId}`);
-  console.log(`seed ${run.seed} · market ${run.marketSeed} · founders ${founders}\n`);
+  const dataset = await prisma.marketDataset.findUniqueOrThrow({
+    where: { id: run.datasetId },
+    select: { key: true, source: true, tokenCount: true },
+  });
+  console.log(
+    `seed ${run.seed} · founders ${founders} · market ${dataset.key} ` +
+      `(${dataset.source}, ${dataset.tokenCount} tokens)\n`,
+  );
 
   const started = Date.now();
   for (let i = 0; i < steps; i++) {

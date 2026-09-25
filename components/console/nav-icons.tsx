@@ -141,3 +141,16 @@ export function IconReset(p: IconProps) {
     </Svg>
   );
 }
+
+/** Paper trading: two candles crossed by a target line. */
+export function IconTrading(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M4 3.4v1.8M4 10.6v2" />
+      <rect x="2.6" y="5.2" width="2.8" height="5.4" rx="0.6" />
+      <path d="M11 2.6v1.6M11 11v2.4" />
+      <rect x="9.6" y="4.2" width="2.8" height="6.8" rx="0.6" />
+      <path d="M1.2 8h13.6" strokeDasharray="1.6 1.6" opacity="0.5" />
+    </Svg>
+  );
+}
